@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import Session
 
+from app.core.security import get_current_admin
 from app.db.session import get_session
 from app.schemas.photo import PhotoRead
 from app.services import photo_service
@@ -48,3 +49,23 @@ def get_photo(
             detail="Photo not found.",
         )
     return PhotoRead.from_model(photo)
+
+
+@router.delete("/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_photo(
+    photo_id: int,
+    session: Session = Depends(get_session),
+    admin: str = Depends(get_current_admin),
+) -> Response:
+    """Delete a photo and its Cloudinary asset. Admin-only.
+
+    Returns 204 on success, 404 if the photo does not exist, and 401 if the
+    request is not authenticated as the admin.
+    """
+    deleted = photo_service.delete_photo(session, photo_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Photo not found.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
