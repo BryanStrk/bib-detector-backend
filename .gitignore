@@ -1,0 +1,29 @@
+# venv
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Modelos pesados (NO subir pesos de YOLO)
+*.pt
+*.onnx
+*.pth
+runs/
+weights/
+
+# IDE
+.idea/
+
+# macOS
+.DS_Store
+
+# Uploads temporales
+uploads/
+temp/
+.claude/

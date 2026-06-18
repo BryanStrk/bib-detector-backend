@@ -1,0 +1,13 @@
+# Web framework
+fastapi>=0.115
+uvicorn[standard]>=0.34
+python-multipart>=0.0.18
+pydantic-settings>=2.7
+
+# Image handling
+pillow>=11
+opencv-python-headless>=4.10
+
+# CV / OCR (estos arrastran numpy + torch compatibles automáticamente)
+easyocr>=1.7
+ultralytics>=8.3
