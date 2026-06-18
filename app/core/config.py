@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -27,9 +28,10 @@ class Settings(BaseSettings):
     # whole-image EasyOCR MVP pipeline.
     model_path: str | None = None
 
-    # Comma-separated list of allowed CORS origins. Defaults include the Vite
-    # dev server and a placeholder production frontend origin.
-    cors_origins: list[str] = [
+    # Comma-separated list of allowed CORS origins. ``NoDecode`` prevents
+    # pydantic-settings from trying to JSON-decode the value, so the validator
+    # below can split a plain comma-separated string.
+    cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:5173",
         "https://bib-detector.example.com",
     ]
