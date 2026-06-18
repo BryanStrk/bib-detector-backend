@@ -27,3 +27,12 @@ weights/
 uploads/
 temp/
 .claude/
+
+# Local SQLite database files
+*.db
+
+# Local SQLite database files
+*.db
+
+# Local SQLite database files
+*.db
