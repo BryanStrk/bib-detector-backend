@@ -1,0 +1,32 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Version control
+.git/
+.gitignore
+
+# Secrets / local env
+.env
+.env.*
+
+# Model weights (downloaded at runtime / mounted separately)
+*.pt
+*.onnx
+*.pth
+runs/
+weights/
+
+# IDE / OS
+.idea/
+.claude/
+.DS_Store
+
+# Temp uploads
+uploads/
+temp/
