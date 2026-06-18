@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import re
 from functools import lru_cache
 
@@ -26,6 +27,10 @@ from app.core.exceptions import DetectorError
 from app.schemas.detection import Detection
 
 logger = logging.getLogger(__name__)
+
+# Hugging Face Spaces only allows writes to /tmp, so EasyOCR must store and
+# download its model weights there (the default ~/.EasyOCR is read-only).
+_EASYOCR_STORAGE_DIR = "/tmp/.EasyOCR"
 
 # A valid bib number is 1-5 digits (optionally surrounded by OCR noise we strip).
 _BIB_PATTERN = re.compile(r"^\d{1,5}$")
@@ -68,8 +73,15 @@ class BibDetector:
         if self._reader is None:
             import easyocr  # Imported here so app import stays light.
 
-            logger.info("Loading EasyOCR reader...")
-            self._reader = easyocr.Reader(["en"], gpu=False)
+            # Ensure the writable storage dir exists (required on HF Spaces).
+            os.makedirs(_EASYOCR_STORAGE_DIR, exist_ok=True)
+            logger.info("Loading EasyOCR reader (storage: %s)", _EASYOCR_STORAGE_DIR)
+            self._reader = easyocr.Reader(
+                ["en"],
+                gpu=False,
+                model_storage_directory=_EASYOCR_STORAGE_DIR,
+                download_enabled=True,
+            )
         return self._reader
 
     def _get_yolo(self):
