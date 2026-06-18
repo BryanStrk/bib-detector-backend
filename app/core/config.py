@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     # Maximum accepted upload size in megabytes.
     max_upload_mb: int = 10
 
+    # --- Admin auth (single user, no user table) ---------------------------
+    # The admin username and a *bcrypt hash* of the admin password (never
+    # store plaintext). Generate the hash with ``scripts/hash_password.py``.
+    admin_username: str | None = None
+    admin_password_hash: str | None = None
+
+    # JWT signing config. ``JWT_SECRET_KEY`` must be set for auth to work.
+    jwt_secret_key: str | None = None
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: object) -> object:
