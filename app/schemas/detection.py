@@ -37,6 +37,11 @@ class Detection(BaseModel):
 class DetectResponse(BaseModel):
     """Response body for ``POST /detect``."""
 
+    photo_id: int = Field(..., description="ID of the persisted photo record.")
+    cloudinary_url: str | None = Field(
+        default=None,
+        description="URL of the uploaded image in Cloudinary.",
+    )
     filename: str = Field(..., description="Original uploaded filename.")
     processing_time: float = Field(
         ...,
