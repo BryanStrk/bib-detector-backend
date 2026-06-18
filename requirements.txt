@@ -19,3 +19,7 @@ cloudinary>=1.41
 
 # Rate limiting
 slowapi>=0.1.9
+
+# Auth (JWT + password hashing)
+pyjwt>=2.9
+pwdlib[bcrypt]>=0.2
