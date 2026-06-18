@@ -36,3 +36,6 @@ temp/
 
 # Local SQLite database files
 *.db
+
+# Claude Code project map (local only)
+graphify-out/
