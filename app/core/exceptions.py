@@ -10,6 +10,7 @@ import logging
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,14 @@ class DetectorError(Exception):
     """Raised when the detection pipeline fails to process an image."""
 
     def __init__(self, message: str = "Failed to process image.") -> None:
+        self.message = message
+        super().__init__(message)
+
+
+class StorageError(Exception):
+    """Raised when uploading an image to the storage backend fails."""
+
+    def __init__(self, message: str = "Failed to store image.") -> None:
         self.message = message
         super().__init__(message)
 
@@ -34,6 +43,27 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": exc.message},
+        )
+
+    @app.exception_handler(StorageError)
+    async def _handle_storage_error(
+        request: Request, exc: StorageError
+    ) -> JSONResponse:
+        """Return a 502 with a clean message when image storage fails."""
+        logger.exception("Storage failed for %s", request.url.path)
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"detail": exc.message},
+        )
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _handle_rate_limit(
+        request: Request, exc: RateLimitExceeded
+    ) -> JSONResponse:
+        """Return a clean 429 when a client exceeds its rate limit."""
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"detail": f"Rate limit exceeded: {exc.detail}"},
         )
 
     @app.exception_handler(Exception)
