@@ -6,13 +6,18 @@ route handlers stay thin (router -> service -> db).
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 from sqlmodel import Session, select
 
+from app.core.exceptions import StorageError
 from app.db.models import Detection as DetectionRow
 from app.db.models import Photo
 from app.schemas.detection import Detection as DetectionSchema
+from app.services import storage
+
+logger = logging.getLogger(__name__)
 
 # Default and maximum number of photos returned by the history listing.
 _DEFAULT_HISTORY_LIMIT = 50
@@ -109,3 +114,41 @@ def list_photos(
 def get_photo(session: Session, photo_id: int) -> Photo | None:
     """Return a single photo by ID, or ``None`` if not found."""
     return session.get(Photo, photo_id)
+
+
+def delete_photo(session: Session, photo_id: int) -> bool:
+    """Delete a photo, its Cloudinary asset, and its detections.
+
+    Resilient by design: if the Cloudinary asset is already gone (orphan) or
+    the delete call fails, the database row is still removed and a warning is
+    logged. Detections are removed via the cascade relationship.
+
+    Args:
+        session: Active database session.
+        photo_id: ID of the photo to delete.
+
+    Returns:
+        True if the photo existed and was deleted, False if it was not found.
+    """
+    photo = session.get(Photo, photo_id)
+    if photo is None:
+        return False
+
+    if photo.cloudinary_public_id:
+        try:
+            deleted = storage.delete_image(photo.cloudinary_public_id)
+            if not deleted:
+                logger.warning(
+                    "Cloudinary asset %s already absent; removing DB row anyway.",
+                    photo.cloudinary_public_id,
+                )
+        except StorageError:
+            logger.warning(
+                "Cloudinary delete failed for %s; removing DB row anyway.",
+                photo.cloudinary_public_id,
+                exc_info=True,
+            )
+
+    session.delete(photo)
+    session.commit()
+    return True
