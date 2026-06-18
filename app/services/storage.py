@@ -74,3 +74,29 @@ def upload_image(data: bytes, filename: str | None = None) -> tuple[str, str]:
         raise StorageError("Failed to upload image to storage.") from exc
 
     return result["secure_url"], result["public_id"]
+
+
+def delete_image(public_id: str) -> bool:
+    """Delete an image from Cloudinary by its public ID.
+
+    Args:
+        public_id: The Cloudinary public ID returned at upload time.
+
+    Returns:
+        True if the asset was deleted, False if Cloudinary reports it was not
+        found (already gone) — callers can treat the latter as a no-op.
+
+    Raises:
+        StorageError: If Cloudinary is unconfigured or the call itself fails.
+    """
+    _ensure_configured()
+
+    import cloudinary.uploader
+
+    try:
+        result = cloudinary.uploader.destroy(public_id, resource_type="image")
+    except Exception as exc:  # noqa: BLE001 - normalize to StorageError
+        logger.exception("Cloudinary delete failed for %s", public_id)
+        raise StorageError("Failed to delete image from storage.") from exc
+
+    return result.get("result") == "ok"
