@@ -11,3 +11,11 @@ opencv-python-headless>=4.10
 # CV / OCR (estos arrastran numpy + torch compatibles automáticamente)
 easyocr>=1.7
 ultralytics>=8.3
+
+# Persistence + storage
+sqlmodel>=0.0.22
+psycopg[binary]>=3.2
+cloudinary>=1.41
+
+# Rate limiting
+slowapi>=0.1.9
