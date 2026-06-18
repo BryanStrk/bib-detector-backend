@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from app.db.session import get_session
@@ -13,9 +13,26 @@ router = APIRouter(tags=["photos"])
 
 
 @router.get("/photos", response_model=list[PhotoRead])
-def list_photos(session: Session = Depends(get_session)) -> list[PhotoRead]:
-    """Return recent processed photos with their detections (newest first)."""
-    photos = photo_service.list_photos(session)
+def list_photos(
+    bib_number: str | None = Query(
+        default=None,
+        description="Return only photos with a detection matching this bib number exactly.",
+    ),
+    limit: int = Query(
+        default=50, ge=0, le=100, description="Page size (max 100)."
+    ),
+    offset: int = Query(default=0, ge=0, description="Number of photos to skip."),
+    session: Session = Depends(get_session),
+) -> list[PhotoRead]:
+    """Return recent processed photos with their detections (newest first).
+
+    Supports optional exact-match search by ``bib_number`` and standard
+    ``limit``/``offset`` pagination. Out-of-range pagination values are
+    rejected with ``422``.
+    """
+    photos = photo_service.list_photos(
+        session, bib_number=bib_number, limit=limit, offset=offset
+    )
     return [PhotoRead.from_model(photo) for photo in photos]
 
 

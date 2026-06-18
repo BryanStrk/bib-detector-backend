@@ -14,8 +14,9 @@ from app.db.models import Detection as DetectionRow
 from app.db.models import Photo
 from app.schemas.detection import Detection as DetectionSchema
 
-# Default number of photos returned by the history listing.
+# Default and maximum number of photos returned by the history listing.
 _DEFAULT_HISTORY_LIMIT = 50
+_MAX_HISTORY_LIMIT = 100
 
 
 def create_photo(
@@ -67,10 +68,41 @@ def create_photo(
 
 
 def list_photos(
-    session: Session, limit: int = _DEFAULT_HISTORY_LIMIT
+    session: Session,
+    *,
+    bib_number: str | None = None,
+    limit: int = _DEFAULT_HISTORY_LIMIT,
+    offset: int = 0,
 ) -> Sequence[Photo]:
-    """Return the most recent photos (newest first) with their detections."""
-    statement = select(Photo).order_by(Photo.created_at.desc()).limit(limit)
+    """Return a paginated, newest-first page of photos with their detections.
+
+    Args:
+        session: Active database session.
+        bib_number: When provided, restrict to photos having at least one
+            detection whose ``bib_number`` matches exactly. Matching photos are
+            returned once (distinct) and still carry *all* of their detections.
+        limit: Page size (clamped to ``[0, _MAX_HISTORY_LIMIT]``).
+        offset: Number of photos to skip (clamped to be non-negative).
+
+    Returns:
+        The matching photos, newest first.
+    """
+    limit = max(0, min(limit, _MAX_HISTORY_LIMIT))
+    offset = max(0, offset)
+
+    statement = select(Photo)
+    if bib_number is not None:
+        # Join to filter by a detection's bib number, but keep each photo once.
+        # The relationship still eager-loads every detection (lazy="selectin").
+        statement = (
+            statement.join(DetectionRow)
+            .where(DetectionRow.bib_number == bib_number)
+            .distinct()
+        )
+
+    statement = (
+        statement.order_by(Photo.created_at.desc()).offset(offset).limit(limit)
+    )
     return session.exec(statement).all()
 
 
