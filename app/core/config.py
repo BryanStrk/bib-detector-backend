@@ -39,6 +39,19 @@ class Settings(BaseSettings):
     # Detections scoring below this confidence threshold are discarded.
     min_confidence: float = 0.3
 
+    # SQLAlchemy/SQLModel database URL. Defaults to a local SQLite file so the
+    # app runs without external services; use a Postgres URL in production,
+    # e.g. ``postgresql+psycopg://user:pass@host:5432/dbname``.
+    database_url: str = "sqlite:///./bib_detector.db"
+
+    # Cloudinary credentials URL, e.g.
+    # ``cloudinary://<api_key>:<api_secret>@<cloud_name>``. Required to persist
+    # uploaded images; when unset, uploads raise a clean error.
+    cloudinary_url: str | None = None
+
+    # Maximum accepted upload size in megabytes.
+    max_upload_mb: int = 10
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: object) -> object:
