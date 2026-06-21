@@ -69,6 +69,56 @@ def decode_access_token(token: str) -> dict[str, Any]:
     )
 
 
+def create_claim_token(
+    participant_id: int, event_id: int, bib_number: str
+) -> str:
+    """Build a short-lived, single-use JWT for claiming a participant's photos.
+
+    The token carries a ``type: "claim"`` marker so it cannot be used as an
+    admin access token (and vice versa), plus the identifying claims needed to
+    resolve the participant on verification.
+
+    Raises:
+        RuntimeError: If ``JWT_SECRET_KEY`` is not configured.
+    """
+    settings = get_settings()
+    if not settings.jwt_secret_key:
+        raise RuntimeError("JWT_SECRET_KEY is not configured.")
+
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.claim_token_expire_minutes
+    )
+    payload: dict[str, Any] = {
+        "sub": str(participant_id),
+        "event_id": event_id,
+        "bib_number": bib_number,
+        "type": "claim",
+        "exp": expire,
+    }
+    return jwt.encode(
+        payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
+
+
+def decode_claim_token(token: str) -> dict[str, Any]:
+    """Decode and verify a claim token, returning its claims.
+
+    Enforces the ``type == "claim"`` marker so an admin access token cannot be
+    replayed against the claim-verification flow.
+
+    Raises:
+        jwt.PyJWTError: If the token is invalid, malformed, expired, or is not a
+            claim token.
+    """
+    settings = get_settings()
+    payload = jwt.decode(
+        token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+    )
+    if payload.get("type") != "claim":
+        raise jwt.InvalidTokenError("Not a claim token.")
+    return payload
+
+
 async def get_current_admin(token: str = Depends(oauth2_scheme)) -> str:
     """Resolve the admin identity from a bearer token.
 
