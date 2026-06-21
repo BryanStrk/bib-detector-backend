@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
 
+    # --- Claim flow / transactional email (Resend) -------------------------
+    # API key for the Resend email provider (required to send claim emails).
+    resend_api_key: str
+    # Verified sender address; the Resend sandbox default works out of the box.
+    resend_from_email: str = "onboarding@resend.dev"
+    # Public base URL of the frontend, used to build magic links.
+    frontend_url: str = "http://localhost:5173"
+    # Lifetime of a single-use claim (magic-link) token, in minutes.
+    claim_token_expire_minutes: int = 15
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_cors_origins(cls, value: object) -> object:
