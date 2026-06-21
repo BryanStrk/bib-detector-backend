@@ -39,6 +39,14 @@ class EventNotFoundError(Exception):
         super().__init__(message)
 
 
+class EmailError(Exception):
+    """Raised when sending a transactional email via the provider fails."""
+
+    def __init__(self, message: str = "Failed to send email.") -> None:
+        self.message = message
+        super().__init__(message)
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Attach JSON exception handlers to the FastAPI application."""
 
