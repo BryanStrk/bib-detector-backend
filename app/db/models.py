@@ -9,15 +9,60 @@ annotations`` — SQLModel needs the real relationship type objects (not strings
 to configure the ORM mappers.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import List, Optional
 
+from sqlalchemy import Column, ForeignKey, Integer, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 
 def _utcnow() -> datetime:
     """Return the current UTC time (factory for ``created_at`` defaults)."""
     return datetime.now(timezone.utc)
+
+
+class Event(SQLModel, table=True):
+    """A race event that owns a roster of participants."""
+
+    __tablename__ = "events"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    slug: str = Field(unique=True, index=True)
+    event_date: Optional[date] = Field(default=None)
+    created_at: datetime = Field(default_factory=_utcnow)
+
+    participants: List["Participant"] = Relationship(
+        back_populates="event",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class Participant(SQLModel, table=True):
+    """A registered athlete (bib number + identity) belonging to an Event."""
+
+    __tablename__ = "participants"
+    __table_args__ = (
+        UniqueConstraint("event_id", "bib_number", name="uq_participant_event_bib"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    # DB-level CASCADE so deleting an event clears its roster even outside the
+    # ORM; the relationship below adds the ORM-level delete-orphan cascade.
+    event_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("events.id", ondelete="CASCADE"),
+            index=True,
+            nullable=False,
+        ),
+    )
+    bib_number: str = Field(index=True)
+    full_name: str
+    email: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=_utcnow)
+
+    event: Optional[Event] = Relationship(back_populates="participants")
 
 
 class Photo(SQLModel, table=True):
@@ -34,6 +79,18 @@ class Photo(SQLModel, table=True):
     processing_time: float
     status: str = Field(default="completed")
     created_at: datetime = Field(default_factory=_utcnow, index=True)
+    # Optional link to the event this photo belongs to. No inverse relationship;
+    # ON DELETE SET NULL so removing an event detaches (not deletes) its photos.
+    # The column itself is added to existing databases via a manual migration.
+    event_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("events.id", ondelete="SET NULL"),
+            index=True,
+            nullable=True,
+        ),
+    )
 
     detections: List["Detection"] = Relationship(
         back_populates="photo",
