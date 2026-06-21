@@ -31,6 +31,14 @@ class StorageError(Exception):
         super().__init__(message)
 
 
+class EventNotFoundError(Exception):
+    """Raised when an operation references an event that does not exist."""
+
+    def __init__(self, message: str = "Event not found.") -> None:
+        self.message = message
+        super().__init__(message)
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Attach JSON exception handlers to the FastAPI application."""
 
@@ -53,6 +61,16 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.exception("Storage failed for %s", request.url.path)
         return JSONResponse(
             status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"detail": exc.message},
+        )
+
+    @app.exception_handler(EventNotFoundError)
+    async def _handle_event_not_found(
+        request: Request, exc: EventNotFoundError
+    ) -> JSONResponse:
+        """Return a 404 when an event referenced by the request is missing."""
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
             content={"detail": exc.message},
         )
 
