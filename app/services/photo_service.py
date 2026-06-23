@@ -35,6 +35,7 @@ def create_photo(
     processing_time: float,
     detections: Sequence[DetectionSchema],
     status: str = "completed",
+    event_id: int | None = None,
 ) -> Photo:
     """Persist a photo and its detections in a single transaction.
 
@@ -42,6 +43,7 @@ def create_photo(
         session: Active database session.
         detections: Detection DTOs produced by the detection pipeline; their
             ``bbox`` list is unpacked into the stored column layout.
+        event_id: Optional event this photo belongs to.
 
     Returns:
         The persisted :class:`~app.db.models.Photo`, refreshed with its ID.
@@ -54,6 +56,7 @@ def create_photo(
         height=height,
         processing_time=processing_time,
         status=status,
+        event_id=event_id,
         detections=[
             DetectionRow(
                 bib_number=d.bib_number,
@@ -107,6 +110,30 @@ def list_photos(
 
     statement = (
         statement.order_by(Photo.created_at.desc()).offset(offset).limit(limit)
+    )
+    return session.exec(statement).all()
+
+
+def get_runner_photos(
+    session: Session, event_id: int, bib_number: str
+) -> Sequence[Photo]:
+    """Return a runner's photos for one event (newest first, with detections).
+
+    Restricts to photos belonging to ``event_id`` that also have at least one
+    detection matching ``bib_number`` exactly. Both filters are required so a
+    runner can never see photos from other events or other bib numbers. Each
+    photo is returned once and still carries all of its detections
+    (``lazy="selectin"``).
+    """
+    statement = (
+        select(Photo)
+        .join(DetectionRow)
+        .where(
+            Photo.event_id == event_id,
+            DetectionRow.bib_number == bib_number,
+        )
+        .distinct()
+        .order_by(Photo.created_at.desc())
     )
     return session.exec(statement).all()
 
