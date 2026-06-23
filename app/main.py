@@ -17,7 +17,7 @@ from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.rate_limit import limiter
 from app.db.session import init_db
-from app.routers import auth, claims, detection, events, photos
+from app.routers import auth, claims, detection, events, me, photos
 
 
 @asynccontextmanager
@@ -55,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(claims.router)
     app.include_router(detection.router)
     app.include_router(events.router)
+    app.include_router(me.router)
     app.include_router(photos.router)
 
     return app
