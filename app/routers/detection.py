@@ -9,6 +9,7 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
+    Form,
     HTTPException,
     Request,
     UploadFile,
@@ -18,7 +19,9 @@ from PIL import Image, UnidentifiedImageError
 from sqlmodel import Session
 
 from app.core.config import Settings, get_settings
+from app.core.exceptions import EventNotFoundError
 from app.core.rate_limit import limiter
+from app.db.models import Event
 from app.db.session import get_session
 from app.schemas.detection import DetectResponse, HealthResponse
 from app.services import photo_service, storage
@@ -50,6 +53,9 @@ def health(detector: BibDetector = Depends(get_detector)) -> HealthResponse:
 async def detect(
     request: Request,
     file: UploadFile = File(..., description="Race photo (JPEG or PNG)."),
+    event_id: int | None = Form(
+        default=None, description="Optional event to associate the photo with."
+    ),
     detector: BibDetector = Depends(get_detector),
     settings: Settings = Depends(get_settings),
     session: Session = Depends(get_session),
@@ -58,13 +64,18 @@ async def detect(
 
     Flow: validate -> detect -> upload to Cloudinary -> persist Photo +
     Detections -> return the detections plus the new photo id and image URL.
+    When ``event_id`` is provided, the photo is linked to that event.
 
     Rate limited to 10 requests/minute per client IP.
 
     Raises:
         HTTPException: 400 for an invalid/empty upload, 413 if it exceeds
             ``MAX_UPLOAD_MB``.
+        EventNotFoundError: 404 if ``event_id`` is given but does not exist.
     """
+    if event_id is not None and session.get(Event, event_id) is None:
+        raise EventNotFoundError(f"Event {event_id} not found.")
+
     if file.content_type not in _ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -105,6 +116,7 @@ async def detect(
         height=height,
         processing_time=processing_time,
         detections=detections,
+        event_id=event_id,
     )
 
     # 5. Return the same response shape as before, plus id and image URL.
