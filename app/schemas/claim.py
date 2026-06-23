@@ -17,3 +17,9 @@ class ClaimResponse(BaseModel):
     """Neutral response for ``POST /claims`` (never reveals whether it matched)."""
 
     message: str = Field(..., description="Human-readable status message.")
+
+
+class ClaimVerifyRequest(BaseModel):
+    """Request body for ``POST /claims/verify`` (exchanges a magic-link token)."""
+
+    token: str = Field(..., description="The claim token from the magic link.")
