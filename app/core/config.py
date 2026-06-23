@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     # Lifetime of a single-use claim (magic-link) token, in minutes.
     claim_token_expire_minutes: int = 15
+    # Lifetime of a runner session token, in minutes (default: 24 hours).
+    runner_token_expire_minutes: int = 1440
 
     @field_validator("cors_origins", mode="before")
     @classmethod

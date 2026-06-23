@@ -8,12 +8,13 @@ short-lived signed JWT.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
 from pwdlib import PasswordHash
 from pwdlib.hashers.bcrypt import BcryptHasher
 
@@ -26,6 +27,19 @@ _password_hash = PasswordHash((BcryptHasher(),))
 # Bearer scheme; ``tokenUrl`` makes Swagger's Authorize button hit the login
 # endpoint. Relative path (no leading slash) so it works behind a prefix.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+# Plain bearer scheme for runner (athlete) tokens, which are not obtained via
+# the OAuth2 password flow but minted from a verified claim magic-link.
+runner_bearer_scheme = HTTPBearer()
+
+
+@dataclass
+class RunnerContext:
+    """Identity of an authenticated runner, decoded from their session token."""
+
+    participant_id: int
+    event_id: int
+    bib_number: str
 
 
 def hash_password(plain_password: str) -> str:
@@ -117,6 +131,75 @@ def decode_claim_token(token: str) -> dict[str, Any]:
     if payload.get("type") != "claim":
         raise jwt.InvalidTokenError("Not a claim token.")
     return payload
+
+
+def create_runner_token(
+    participant_id: int, event_id: int, bib_number: str
+) -> str:
+    """Build a runner session JWT, issued after a claim magic-link is verified.
+
+    Carries a ``type: "runner"`` marker so it is only accepted by the runner
+    gallery endpoints (and never as an admin or claim token).
+
+    Raises:
+        RuntimeError: If ``JWT_SECRET_KEY`` is not configured.
+    """
+    settings = get_settings()
+    if not settings.jwt_secret_key:
+        raise RuntimeError("JWT_SECRET_KEY is not configured.")
+
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.runner_token_expire_minutes
+    )
+    payload: dict[str, Any] = {
+        "sub": str(participant_id),
+        "event_id": event_id,
+        "bib_number": bib_number,
+        "type": "runner",
+        "exp": expire,
+    }
+    return jwt.encode(
+        payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
+
+
+async def get_current_runner(
+    credentials: HTTPAuthorizationCredentials = Depends(runner_bearer_scheme),
+) -> RunnerContext:
+    """Resolve the runner identity from a bearer token.
+
+    Enforces the ``type == "runner"`` marker so admin or claim tokens cannot be
+    replayed against the runner gallery.
+
+    Returns:
+        A :class:`RunnerContext` with the participant, event, and bib number.
+
+    Raises:
+        HTTPException: 401 if the token is missing, invalid, expired, or is not
+            a runner token.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = decode_access_token(credentials.credentials)
+    except jwt.PyJWTError as exc:
+        raise credentials_exception from exc
+
+    if payload.get("type") != "runner":
+        raise credentials_exception
+
+    try:
+        return RunnerContext(
+            participant_id=int(payload["sub"]),
+            event_id=payload["event_id"],
+            bib_number=payload["bib_number"],
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise credentials_exception from exc
 
 
 async def get_current_admin(token: str = Depends(oauth2_scheme)) -> str:
