@@ -18,7 +18,42 @@ logger = logging.getLogger(__name__)
 # Cloudinary folder under which uploads are organized.
 _UPLOAD_FOLDER = "bib-detector"
 
+# Marker that separates the delivery type from the asset path in a Cloudinary
+# URL; transformations are inserted immediately after it.
+_UPLOAD_MARKER = "/upload/"
+
+# Transformation chain for public previews: resize to width 1000, auto quality
+# and format, plus a semi-transparent centered text watermark. Delivered as an
+# unsigned derived URL (Strict transformations are disabled on this account).
+_PREVIEW_TRANSFORMATION = (
+    "w_1000,c_limit,q_auto,f_auto"
+    "/l_text:Arial_50_bold:BIB%20DETECTOR,o_30,co_white,g_center"
+)
+
 _configured = False
+
+
+def build_preview_url(cloudinary_url: str) -> str:
+    """Return a watermarked, resized preview URL for a Cloudinary image.
+
+    Inserts :data:`_PREVIEW_TRANSFORMATION` right after the ``/upload/`` segment
+    so Cloudinary generates the derived asset on the fly. This is a pure,
+    side-effect-free string transform — it never calls the Cloudinary API.
+
+    Defensive and idempotent: a URL without ``/upload/`` (or one that already
+    carries the preview transformation) is returned unchanged.
+    """
+    index = cloudinary_url.find(_UPLOAD_MARKER)
+    if index == -1:
+        return cloudinary_url
+
+    tail_start = index + len(_UPLOAD_MARKER)
+    tail = cloudinary_url[tail_start:]
+    if tail.startswith(_PREVIEW_TRANSFORMATION):
+        return cloudinary_url
+
+    head = cloudinary_url[:tail_start]
+    return f"{head}{_PREVIEW_TRANSFORMATION}/{tail}"
 
 
 def _ensure_configured() -> None:
