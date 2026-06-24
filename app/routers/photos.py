@@ -34,7 +34,7 @@ def list_photos(
     photos = photo_service.list_photos(
         session, bib_number=bib_number, limit=limit, offset=offset
     )
-    return [PhotoRead.from_model(photo) for photo in photos]
+    return [PhotoRead.from_model_public(photo) for photo in photos]
 
 
 @router.get("/photos/{photo_id}", response_model=PhotoRead)
@@ -48,7 +48,7 @@ def get_photo(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Photo not found.",
         )
-    return PhotoRead.from_model(photo)
+    return PhotoRead.from_model_public(photo)
 
 
 @router.delete("/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
