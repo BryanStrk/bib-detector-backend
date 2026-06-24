@@ -27,4 +27,6 @@ def list_my_photos(
     photos = photo_service.get_runner_photos(
         session, runner.event_id, runner.bib_number
     )
-    return [PhotoRead.from_model(photo) for photo in photos]
+    return [
+        PhotoRead.from_model_runner(photo, runner.bib_number) for photo in photos
+    ]
