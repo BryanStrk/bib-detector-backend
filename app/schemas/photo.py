@@ -3,6 +3,13 @@
 These map the ORM models in :mod:`app.db.models` to the API wire format,
 reassembling the split bbox columns into the ``[x, y, w, h]`` list used
 everywhere else in the API.
+
+Two views exist for a photo:
+
+* the **public** gallery (``GET /photos``) only exposes the watermarked
+  ``preview_url`` — the clean original is never returned;
+* the **runner** gallery (``GET /me/photos``) additionally exposes the original
+  ``cloudinary_url`` and limits ``detections`` to the runner's own bib number.
 """
 
 from __future__ import annotations
@@ -12,6 +19,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.db.models import Photo
+from app.services.storage import build_preview_url
 
 
 class DetectionRead(BaseModel):
@@ -31,7 +39,14 @@ class PhotoRead(BaseModel):
 
     id: int
     filename: str
-    cloudinary_url: str | None
+    cloudinary_url: str | None = Field(
+        default=None,
+        description="Original image URL. Only exposed to the photo's runner.",
+    )
+    preview_url: str = Field(
+        ...,
+        description="Watermarked, resized preview URL (safe for public display).",
+    )
     width: int | None
     height: int | None
     processing_time: float
@@ -39,25 +54,56 @@ class PhotoRead(BaseModel):
     created_at: datetime
     detections: list[DetectionRead]
 
+    @staticmethod
+    def _read_detections(
+        photo: Photo, bib_number: str | None = None
+    ) -> list[DetectionRead]:
+        """Map a photo's detections, optionally filtered to one bib number."""
+        return [
+            DetectionRead(
+                id=det.id,
+                bib_number=det.bib_number,
+                confidence=det.confidence,
+                bbox=[det.bbox_x, det.bbox_y, det.bbox_w, det.bbox_h],
+            )
+            for det in photo.detections
+            if bib_number is None or det.bib_number == bib_number
+        ]
+
     @classmethod
-    def from_model(cls, photo: Photo) -> "PhotoRead":
-        """Build a ``PhotoRead`` from a :class:`~app.db.models.Photo` row."""
+    def from_model_public(cls, photo: Photo) -> "PhotoRead":
+        """Public view: watermarked preview only, original URL withheld."""
+        preview = (
+            build_preview_url(photo.cloudinary_url) if photo.cloudinary_url else ""
+        )
         return cls(
             id=photo.id,
             filename=photo.filename,
-            cloudinary_url=photo.cloudinary_url,
+            cloudinary_url=None,
+            preview_url=preview,
             width=photo.width,
             height=photo.height,
             processing_time=photo.processing_time,
             status=photo.status,
             created_at=photo.created_at,
-            detections=[
-                DetectionRead(
-                    id=det.id,
-                    bib_number=det.bib_number,
-                    confidence=det.confidence,
-                    bbox=[det.bbox_x, det.bbox_y, det.bbox_w, det.bbox_h],
-                )
-                for det in photo.detections
-            ],
+            detections=cls._read_detections(photo),
+        )
+
+    @classmethod
+    def from_model_runner(cls, photo: Photo, bib_number: str) -> "PhotoRead":
+        """Runner view: preview + original, detections limited to ``bib_number``."""
+        preview = (
+            build_preview_url(photo.cloudinary_url) if photo.cloudinary_url else ""
+        )
+        return cls(
+            id=photo.id,
+            filename=photo.filename,
+            cloudinary_url=photo.cloudinary_url,
+            preview_url=preview,
+            width=photo.width,
+            height=photo.height,
+            processing_time=photo.processing_time,
+            status=photo.status,
+            created_at=photo.created_at,
+            detections=cls._read_detections(photo, bib_number),
         )
