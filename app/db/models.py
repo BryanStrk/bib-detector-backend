@@ -78,6 +78,10 @@ class Photo(SQLModel, table=True):
     height: Optional[int] = Field(default=None)
     processing_time: float
     status: str = Field(default="completed")
+    # Cloudinary delivery type: "upload" (legacy public assets) or
+    # "authenticated" (newer private assets served via signed URLs). The column
+    # is added to existing databases via a manual migration.
+    storage_type: str = Field(default="upload", index=False)
     created_at: datetime = Field(default_factory=_utcnow, index=True)
     # Optional link to the event this photo belongs to. No inverse relationship;
     # ON DELETE SET NULL so removing an event detaches (not deletes) its photos.
