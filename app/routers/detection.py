@@ -117,6 +117,7 @@ async def detect(
         processing_time=processing_time,
         detections=detections,
         event_id=event_id,
+        storage_type="authenticated",
     )
 
     # 5. Return the same response shape as before, plus id and image URL.
