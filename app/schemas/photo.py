@@ -19,7 +19,11 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.db.models import Photo
-from app.services.storage import build_preview_url
+from app.services.storage import (
+    build_authenticated_preview_url,
+    build_preview_url,
+    build_signed_original_url,
+)
 
 
 class DetectionRead(BaseModel):
@@ -70,17 +74,34 @@ class PhotoRead(BaseModel):
             if bib_number is None or det.bib_number == bib_number
         ]
 
+    @staticmethod
+    def _preview_url(photo: Photo) -> str:
+        """Watermarked preview URL, signed for ``authenticated`` assets."""
+        if photo.storage_type == "authenticated":
+            if not photo.cloudinary_public_id:
+                return ""
+            return build_authenticated_preview_url(photo.cloudinary_public_id)
+        # Legacy "upload" (public) assets: manual unsigned transformation URL.
+        return build_preview_url(photo.cloudinary_url) if photo.cloudinary_url else ""
+
+    @staticmethod
+    def _original_url(photo: Photo) -> str | None:
+        """Original image URL for the runner, signed for ``authenticated`` assets."""
+        if photo.storage_type == "authenticated":
+            if not photo.cloudinary_public_id:
+                return None
+            return build_signed_original_url(photo.cloudinary_public_id)
+        # Legacy public assets are served directly.
+        return photo.cloudinary_url
+
     @classmethod
     def from_model_public(cls, photo: Photo) -> "PhotoRead":
         """Public view: watermarked preview only, original URL withheld."""
-        preview = (
-            build_preview_url(photo.cloudinary_url) if photo.cloudinary_url else ""
-        )
         return cls(
             id=photo.id,
             filename=photo.filename,
             cloudinary_url=None,
-            preview_url=preview,
+            preview_url=cls._preview_url(photo),
             width=photo.width,
             height=photo.height,
             processing_time=photo.processing_time,
@@ -92,14 +113,11 @@ class PhotoRead(BaseModel):
     @classmethod
     def from_model_runner(cls, photo: Photo, bib_number: str) -> "PhotoRead":
         """Runner view: preview + original, detections limited to ``bib_number``."""
-        preview = (
-            build_preview_url(photo.cloudinary_url) if photo.cloudinary_url else ""
-        )
         return cls(
             id=photo.id,
             filename=photo.filename,
-            cloudinary_url=photo.cloudinary_url,
-            preview_url=preview,
+            cloudinary_url=cls._original_url(photo),
+            preview_url=cls._preview_url(photo),
             width=photo.width,
             height=photo.height,
             processing_time=photo.processing_time,
