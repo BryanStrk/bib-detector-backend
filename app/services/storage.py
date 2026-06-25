@@ -99,16 +99,61 @@ def upload_image(data: bytes, filename: str | None = None) -> tuple[str, str]:
     import cloudinary.uploader
 
     try:
+        # type="authenticated" makes the asset private: it can only be served
+        # via a signed URL, never by guessing the public delivery URL.
         result = cloudinary.uploader.upload(
             data,
             folder=_UPLOAD_FOLDER,
             resource_type="image",
+            type="authenticated",
         )
     except Exception as exc:  # noqa: BLE001 - normalize to StorageError
         logger.exception("Cloudinary upload failed for %s", filename or "<bytes>")
         raise StorageError("Failed to upload image to storage.") from exc
 
     return result["secure_url"], result["public_id"]
+
+
+def build_signed_original_url(public_id: str) -> str:
+    """Return a signed delivery URL for an ``authenticated`` original image.
+
+    Used for the runner's own (private) photos; the signature is required
+    because the asset is not publicly accessible.
+    """
+    _ensure_configured()
+
+    import cloudinary.utils
+
+    url, _ = cloudinary.utils.cloudinary_url(
+        public_id,
+        type="authenticated",
+        sign_url=True,
+        secure=True,
+        resource_type="image",
+    )
+    return url
+
+
+def build_authenticated_preview_url(public_id: str) -> str:
+    """Return a signed, watermarked preview URL for an ``authenticated`` asset.
+
+    Applies the same watermark/resize transformation as
+    :func:`build_preview_url`, but signs the URL so Cloudinary will deliver the
+    derived asset from a private original.
+    """
+    _ensure_configured()
+
+    import cloudinary.utils
+
+    url, _ = cloudinary.utils.cloudinary_url(
+        public_id,
+        type="authenticated",
+        sign_url=True,
+        secure=True,
+        resource_type="image",
+        raw_transformation=_PREVIEW_TRANSFORMATION,
+    )
+    return url
 
 
 def delete_image(public_id: str) -> bool:
