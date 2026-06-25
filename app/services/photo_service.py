@@ -36,6 +36,7 @@ def create_photo(
     detections: Sequence[DetectionSchema],
     status: str = "completed",
     event_id: int | None = None,
+    storage_type: str = "authenticated",
 ) -> Photo:
     """Persist a photo and its detections in a single transaction.
 
@@ -44,6 +45,8 @@ def create_photo(
         detections: Detection DTOs produced by the detection pipeline; their
             ``bbox`` list is unpacked into the stored column layout.
         event_id: Optional event this photo belongs to.
+        storage_type: Cloudinary delivery type the asset was stored under
+            ("authenticated" for new private uploads).
 
     Returns:
         The persisted :class:`~app.db.models.Photo`, refreshed with its ID.
@@ -56,6 +59,7 @@ def create_photo(
         height=height,
         processing_time=processing_time,
         status=status,
+        storage_type=storage_type,
         event_id=event_id,
         detections=[
             DetectionRow(
